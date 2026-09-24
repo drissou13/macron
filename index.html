@@ -100,13 +100,16 @@
 const REQUETE = '(site:elysee.fr OR site:vie-publique.fr) "Emmanuel Macron" (discours OR allocution OR déclaration OR intervention OR "conférence de presse")';
 const FLUX_URL = "https://news.google.com/rss/search?q=" + encodeURIComponent(REQUETE) + "&hl=fr&gl=FR&ceid=FR:fr";
 
-// Plusieurs façons d'atteindre ce flux, essayées dans l'ordre : appel
-// direct, puis deux relais publics différents si le navigateur bloque
-// l'appel direct (règle de sécurité CORS) ou si l'un des relais est en panne.
+// Plusieurs façons d'atteindre ce flux, essayées dans l'ordre. rss2json.com
+// est un service fait spécifiquement pour convertir un flux RSS en JSON
+// utilisable depuis un navigateur (avec les bons en-têtes CORS) : c'est
+// beaucoup plus fiable qu'un simple relais générique. Les deux autres
+// servent de filet de sécurité si jamais ce service est indisponible.
 const SOURCES = [
-  { nom: "Google Actualités (direct)", url: FLUX_URL },
-  { nom: "Relais de secours n°1", url: "https://api.allorigins.win/raw?url=" + encodeURIComponent(FLUX_URL) },
-  { nom: "Relais de secours n°2", url: "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(FLUX_URL) },
+  { nom: "rss2json (direct)", type: "rss2json", url: "https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(FLUX_URL) },
+  { nom: "Relais de secours n°1", type: "xml", url: "https://api.allorigins.win/raw?url=" + encodeURIComponent(FLUX_URL) },
+  { nom: "Relais de secours n°2", type: "xml", url: "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(FLUX_URL) },
+  { nom: "Google Actualités (direct)", type: "xml", url: FLUX_URL },
 ];
 
 const STOCKAGE_CLE = "macron_interventions_v2";
@@ -210,31 +213,49 @@ function analyserRSS(xmlTexte) {
     const description = item.querySelector("description")?.textContent || "";
     const sourceTag = item.getElementsByTagName("source")[0];
     const source = sourceTag ? sourceTag.textContent : "";
-
-    // Google News formate les titres ainsi : "Titre de l'article - Nom du média"
-    let titre = nettoyerTexte(titreBrut);
-    let media = source;
-    const sep = titre.lastIndexOf(" - ");
-    if (!media && sep > -1) {
-      media = titre.slice(sep + 3).trim();
-      titre = titre.slice(0, sep).trim();
-    }
-
-    let date = "";
-    if (pubDate) {
-      const d = new Date(pubDate);
-      if (!isNaN(d)) date = d.toISOString().slice(0, 10);
-    }
-
-    return {
-      id: lien || titre,
-      date,
-      titre,
-      url: lien,
-      source: media || "Presse",
-      resume_simple: resumerSimplement(titre, description)
-    };
+    return normaliserEntree(titreBrut, lien, pubDate, description, source);
   });
+}
+
+function analyserJSONrss2json(texteJson) {
+  const data = JSON.parse(texteJson);
+  if (data.status && data.status !== "ok") {
+    throw new Error("rss2json : " + (data.message || "réponse invalide"));
+  }
+  const items = data.items || [];
+  return items.map(it => normaliserEntree(
+    it.title || "",
+    it.link || "",
+    it.pubDate || "",
+    it.description || it.content || "",
+    (it.author || "")
+  ));
+}
+
+function normaliserEntree(titreBrut, lien, pubDate, description, sourceTag) {
+  // Google News formate les titres ainsi : "Titre de l'article - Nom du média"
+  let titre = nettoyerTexte(titreBrut);
+  let media = sourceTag;
+  const sep = titre.lastIndexOf(" - ");
+  if (!media && sep > -1) {
+    media = titre.slice(sep + 3).trim();
+    titre = titre.slice(0, sep).trim();
+  }
+
+  let date = "";
+  if (pubDate) {
+    const d = new Date(pubDate);
+    if (!isNaN(d)) date = d.toISOString().slice(0, 10);
+  }
+
+  return {
+    id: lien || titre,
+    date,
+    titre,
+    url: lien,
+    source: media || "Site officiel",
+    resume_simple: resumerSimplement(titre, description)
+  };
 }
 
 async function recupererDonnees() {
@@ -242,7 +263,8 @@ async function recupererDonnees() {
   for (const source of SOURCES) {
     try {
       const texte = await recupererTexte(source.url);
-      const items = analyserRSS(texte);
+      const items = source.type === "rss2json" ? analyserJSONrss2json(texte) : analyserRSS(texte);
+      if (!items.length) throw new Error("Réponse vide");
       return { items, source: source.nom };
     } catch (e) {
       derniereErreur = e;
