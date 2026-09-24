@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Les annonces de Macron, résumées simplement</title>
+<style>
+  :root{
+    --bleu:#1e3a8a; --bleu-clair:#3b5fd9; --rouge:#c8102e;
+    --fond:#f5f6fa; --carte:#ffffff; --texte:#1c1c1e;
+    --texte-doux:#5a5f6b; --bordure:#e4e6ee; --radius:14px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){ --fond:#111318; --carte:#1b1e26; --texte:#f2f2f4; --texte-doux:#a4a8b4; --bordure:#2a2e3a; }
+  }
+  :root[data-theme="dark"]{ --fond:#111318; --carte:#1b1e26; --texte:#f2f2f4; --texte-doux:#a4a8b4; --bordure:#2a2e3a; }
+  *{box-sizing:border-box;}
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  body{margin:0;background:var(--fond);color:var(--texte);font-family:"Segoe UI",Roboto,-apple-system,Helvetica,Arial,sans-serif;
+       padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
+  header{background:linear-gradient(135deg,var(--bleu),var(--bleu-clair));color:#fff;padding:2.5rem 1.5rem 2rem;text-align:center;}
+  header h1{margin:0 0 .5rem;font-size:1.8rem;}
+  header p{margin:0 auto;opacity:.9;font-size:1rem;max-width:560px;}
+  .statut{max-width:560px;margin:.8rem auto 0;font-size:.82rem;opacity:.85;}
+  .live{display:inline-flex;align-items:center;gap:.4rem;justify-content:center;margin-top:.6rem;font-size:.78rem;opacity:.9;}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 rgba(74,222,128,.6);animation:pulse 2s infinite;}
+  .live-dot.off{background:#c8102e;animation:none;}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(74,222,128,.6);}
+    70%{box-shadow:0 0 0 8px rgba(74,222,128,0);}
+    100%{box-shadow:0 0 0 0 rgba(74,222,128,0);}
+  }
+  .filtres{max-width:900px;margin:1.2rem auto 0;display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center;padding:0 1rem;}
+  .filtre-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);color:#fff;padding:.4rem .9rem;border-radius:999px;font-size:.85rem;cursor:pointer;transition:.2s;}
+  .filtre-btn:hover,.filtre-btn.actif{background:#fff;color:var(--bleu);}
+  main{max-width:900px;margin:0 auto;padding:1.5rem 1rem 3rem;}
+  .barre-verif{max-width:900px;margin:0 auto 1rem;display:flex;justify-content:center;align-items:center;gap:.8rem;flex-wrap:wrap;}
+  .verifier-btn{border:none;background:var(--bleu-clair);color:#fff;padding:.6rem 1.3rem;border-radius:999px;font-size:.9rem;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(59,95,217,.3);transition:.15s;}
+  .verifier-btn:hover{background:var(--bleu);}
+  .verifier-btn:disabled{opacity:.6;cursor:default;}
+  .maj{text-align:center;color:var(--texte-doux);font-size:.82rem;margin-bottom:1.2rem;display:flex;justify-content:center;align-items:center;gap:.6rem;flex-wrap:wrap;}
+  .timeline{position:relative;padding-left:1.5rem;border-left:3px solid var(--bordure);}
+  .carte{background:var(--carte);border:1px solid var(--bordure);border-radius:var(--radius);padding:1.2rem 1.3rem;margin-bottom:1.3rem;position:relative;box-shadow:0 2px 8px rgba(0,0,0,.04);}
+  .carte::before{content:"";position:absolute;left:-1.9rem;top:1.4rem;width:12px;height:12px;border-radius:50%;background:var(--rouge);border:3px solid var(--fond);}
+  .carte-tete{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:.5rem;margin-bottom:.5rem;}
+  .date{font-weight:700;color:var(--bleu-clair);font-size:.9rem;}
+  .tag{display:inline-block;font-size:.72rem;font-weight:600;padding:.2rem .6rem;border-radius:999px;background:#eef1ff;color:var(--bleu);}
+  @media (prefers-color-scheme: dark){ .tag{background:#232a44;color:#a9b8ff;} }
+  h2{margin:.2rem 0 .6rem;font-size:1.1rem;line-height:1.35;font-weight:600;}
+  .simple{margin-top:.5rem;padding:.7rem .9rem;background:#f1f4ff;border-radius:10px;font-size:.92rem;color:var(--texte-doux);}
+  @media (prefers-color-scheme: dark){ .simple{background:#20263a;} }
+  .simple b{color:var(--texte);}
+  .lien{display:inline-block;margin-top:.6rem;font-size:.85rem;color:var(--bleu-clair);text-decoration:none;}
+  .lien:hover{text-decoration:underline;}
+  footer{text-align:center;padding:1.5rem 1rem 2.5rem;color:var(--texte-doux);font-size:.8rem;}
+  .vide{text-align:center;color:var(--texte-doux);padding:2rem;}
+  .erreur{max-width:700px;margin:0 auto 1rem;background:#fff3f3;border:1px solid #f3c7c7;color:#8a1f1f;padding:.8rem 1rem;border-radius:10px;font-size:.85rem;}
+  @media (prefers-color-scheme: dark){ .erreur{background:#3a2020;border-color:#5a2c2c;color:#f3c7c7;} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🇫🇷 Les annonces de Macron, résumées simplement</h1>
+  <p>Résumé clair de chaque discours ou déclaration officielle, récupéré en direct depuis les données du gouvernement à chaque ouverture de la page.</p>
+  <p class="statut" id="statut">Connexion à la source officielle…</p>
+  <div class="live" id="live-indicator"><span class="live-dot" id="live-dot"></span><span id="live-texte">Suivi en direct actif</span></div>
+</header>
+
+<main>
+  <div class="barre-verif">
+    <button class="verifier-btn" id="verifier-btn">🔄 Vérifier maintenant</button>
+  </div>
+  <div class="filtres" id="filtres"></div>
+  <p class="maj" id="maj"></p>
+  <div id="erreur-zone"></div>
+  <div class="timeline" id="timeline"><p class="vide">Chargement…</p></div>
+</main>
+
+<footer>
+  Source des données : flux officiel « discours publics » de vie-publique.fr (DILA / gouvernement français).<br>
+  Résumés générés automatiquement à partir des métadonnées officielles — à vérifier auprès de la source en cas de doute.
+  Les interventions déjà vues restent mémorisées sur cet appareil (stockage local du navigateur), même si elles sortent des 50 dernières de la source.
+</footer>
+
+<script>
+// ---------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------
+const SOURCE_URL = "https://echanges.dila.gouv.fr/OPENDATA/DISCOURS_PUBLICS/vp_discours.json";
+
+// Plusieurs façons d'atteindre la même source officielle, essayées dans
+// l'ordre : appel direct, puis deux relais publics différents si le
+// navigateur bloque l'appel direct (règle de sécurité CORS) ou si l'un des
+// relais est temporairement en panne. Ça rend la vérification bien plus
+// fiable qu'une seule tentative.
+const SOURCES = [
+  { nom: "Source officielle (direct)", url: SOURCE_URL },
+  { nom: "Relais de secours n°1", url: "https://api.allorigins.win/raw?url=" + encodeURIComponent(SOURCE_URL) },
+  { nom: "Relais de secours n°2", url: "https://corsproxy.io/?url=" + encodeURIComponent(SOURCE_URL) },
+];
+
+const STOCKAGE_CLE = "macron_interventions_v1";
+const INTERVALLE_AUTO_MS = 5 * 60 * 1000; // vérification automatique toutes les 5 minutes
+
+// Données de départ, pour que la page ne soit jamais vide au tout premier chargement.
+const AMORCE = [
+  {
+    id: "300832",
+    date: "2025-11-06",
+    titre: "Déclaration de M. Emmanuel Macron sur l'importance des forêts primaires dans la lutte contre le dérèglement climatique, à Belém",
+    url: "https://www.vie-publique.fr/discours/300832-emmanuel-macron-06112025-lutte-contre-le-dereglement-climatique",
+    circonstance: "Lancement du Tropical Forests Forever Fund",
+    thematiques: ["Climat"],
+    type_document: "Déclaration"
+  },
+  {
+    id: "seed-voeux-2026",
+    date: "2025-12-31",
+    titre: "Vœux aux Français pour 2026",
+    url: "",
+    circonstance: "Allocution télévisée annuelle du 31 décembre",
+    thematiques: ["Vœux annuels"],
+    type_document: "Allocution"
+  },
+  {
+    id: "seed-moyen-orient-2026-03",
+    date: "2026-03-03",
+    titre: "Allocution sur la situation au Proche et Moyen-Orient",
+    url: "",
+    circonstance: "Allocution télévisée exceptionnelle à 20h",
+    thematiques: ["International"],
+    type_document: "Allocution"
+  },
+  {
+    id: "seed-armees-2026-07",
+    date: "2026-07-13",
+    titre: "Discours aux Armées",
+    url: "",
+    circonstance: "Discours traditionnel devant les forces armées, veille du 14 juillet",
+    thematiques: ["Défense"],
+    type_document: "Discours"
+  }
+];
+
+// ---------------------------------------------------------------------
+// Stockage local (mémoire de ce que la page a déjà vu sur cet appareil)
+// ---------------------------------------------------------------------
+function chargerMemoire() {
+  try {
+    const brut = localStorage.getItem(STOCKAGE_CLE);
+    if (brut) return JSON.parse(brut);
+  } catch (e) { /* stockage indisponible : on continue sans */ }
+  return AMORCE;
+}
+
+function sauverMemoire(liste) {
+  try { localStorage.setItem(STOCKAGE_CLE, JSON.stringify(liste)); }
+  catch (e) { /* pas grave si ça échoue (navigation privée, etc.) */ }
+}
+
+// ---------------------------------------------------------------------
+// Résumé "en clair", généré par règles simples (pas d'IA ici)
+// ---------------------------------------------------------------------
+function resumerSimplement(entry) {
+  const type = (entry.type_document || "intervention").toLowerCase();
+  let phrase = `Emmanuel Macron a fait une ${type}.`;
+  if (entry.circonstance) phrase += ` Contexte : ${entry.circonstance}.`;
+  if (entry.thematiques && entry.thematiques.length) {
+    phrase += ` Thème(s) : ${entry.thematiques.join(", ")}.`;
+  }
+  return phrase;
+}
+
+// ---------------------------------------------------------------------
+// Récupération des données depuis la source officielle
+// ---------------------------------------------------------------------
+function estMacron(entry) {
+  const intervenants = entry.intervenants || [];
+  if (intervenants.some(p => (p.nom || "").toLowerCase().includes("macron"))) return true;
+  return (entry.titre || "").toLowerCase().includes("emmanuel macron");
+}
+
+async function recupererFlux(url) {
+  const controleur = new AbortController();
+  const minuteur = setTimeout(() => controleur.abort(), 12000);
+  try {
+    const res = await fetch(url, { cache: "no-store", signal: controleur.signal });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    if (Array.isArray(data)) return data;
+    for (const cle of ["discours", "data", "results", "items"]) {
+      if (Array.isArray(data[cle])) return data[cle];
+    }
+    for (const v of Object.values(data)) if (Array.isArray(v)) return v;
+    return [];
+  } finally {
+    clearTimeout(minuteur);
+  }
+}
+
+// Essaie chaque source l'une après l'autre jusqu'à ce que l'une d'elles
+// réponde correctement. Renvoie aussi le nom de la source qui a marché,
+// pour être transparent sur l'origine des données affichées.
+async function recupererDonnees() {
+  let derniereErreur = null;
+  for (const source of SOURCES) {
+    try {
+      const flux = await recupererFlux(source.url);
+      return { flux, source: source.nom };
+    } catch (e) {
+      derniereErreur = e;
+      console.warn(`[macron-suivi] échec via "${source.nom}" :`, e.message);
+    }
+  }
+  throw derniereErreur || new Error("Toutes les sources ont échoué.");
+}
+
+// ---------------------------------------------------------------------
+// Mise à jour + affichage
+// ---------------------------------------------------------------------
+function formatDate(iso) {
+  if (!iso) return "Date inconnue";
+  const [y, m, d] = iso.split("-");
+  const mois = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+  return `${parseInt(d,10)} ${mois[parseInt(m,10)-1]} ${y}`;
+}
+
+let interventions = chargerMemoire();
+
+function dessinerFiltres() {
+  const filtresEl = document.getElementById('filtres');
+  filtresEl.innerHTML = "";
+  const themes = ["Tous", ...new Set(interventions.flatMap(i => (i.thematiques && i.thematiques.length) ? i.thematiques : ["Autre"]))];
+  themes.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'filtre-btn' + (t === 'Tous' ? ' actif' : '');
+    btn.textContent = t;
+    btn.onclick = () => {
+      document.querySelectorAll('.filtre-btn').forEach(b => b.classList.remove('actif'));
+      btn.classList.add('actif');
+      dessinerListe(t);
+    };
+    filtresEl.appendChild(btn);
+  });
+}
+
+function dessinerListe(filtre) {
+  const tl = document.getElementById('timeline');
+  tl.innerHTML = "";
+  const triees = [...interventions].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  const filtrees = triees.filter(i => {
+    if (filtre === "Tous") return true;
+    const th = (i.thematiques && i.thematiques.length) ? i.thematiques : ["Autre"];
+    return th.includes(filtre);
+  });
+  if (!filtrees.length) {
+    tl.innerHTML = '<p class="vide">Rien dans cette catégorie pour le moment.</p>';
+    return;
+  }
+  filtrees.forEach(i => {
+    const tag = (i.thematiques && i.thematiques[0]) || i.type_document || "Autre";
+    const card = document.createElement('div');
+    card.className = 'carte';
+    card.innerHTML = `
+      <div class="carte-tete">
+        <span class="date">${formatDate(i.date)}</span>
+        <span class="tag">${tag}</span>
+      </div>
+      <h2>${i.titre || "Intervention d'Emmanuel Macron"}</h2>
+      <div class="simple"><b>💡 En clair :</b> ${i.resume_simple || resumerSimplement(i)}</div>
+      ${i.url ? `<a class="lien" href="${i.url}" target="_blank" rel="noopener">Voir la source officielle →</a>` : ""}
+    `;
+    tl.appendChild(card);
+  });
+}
+
+function afficher() {
+  dessinerFiltres();
+  dessinerListe("Tous");
+  document.getElementById('maj').textContent =
+    `${interventions.length} intervention(s) enregistrée(s) sur cet appareil.`;
+}
+
+const boutonVerifier = document.getElementById('verifier-btn');
+const liveDot = document.getElementById('live-dot');
+const liveTexte = document.getElementById('live-texte');
+let minuteurAuto = null;
+let secondesRestantes = INTERVALLE_AUTO_MS / 1000;
+
+function formatHeure(d) {
+  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+async function verifierNouveautes(manuel) {
+  const statutEl = document.getElementById('statut');
+  const erreurZone = document.getElementById('erreur-zone');
+  erreurZone.innerHTML = "";
+  boutonVerifier.disabled = true;
+  boutonVerifier.textContent = "🔄 Vérification…";
+  if (manuel) statutEl.textContent = "Connexion à la source officielle…";
+
+  try {
+    const { flux, source } = await recupererDonnees();
+    const connues = new Set(interventions.map(i => i.id));
+    let nouveaux = 0;
+
+    flux.filter(estMacron).forEach(entry => {
+      const id = String(entry.id || entry.url || "");
+      if (!id || connues.has(id)) return;
+      interventions.push({
+        id,
+        date: entry.prononciation || "",
+        titre: (entry.titre || "").trim(),
+        url: entry.url || "",
+        circonstance: (entry.circonstance || "").trim(),
+        thematiques: entry.thematiques || [],
+        type_document: entry.type_document || "",
+        resume_simple: resumerSimplement(entry)
+      });
+      connues.add(id);
+      nouveaux++;
+    });
+
+    if (nouveaux > 0) sauverMemoire(interventions);
+
+    const suffixeSource = source !== SOURCES[0].nom ? ` (via ${source})` : "";
+    statutEl.textContent = (nouveaux > 0
+      ? `✅ ${nouveaux} nouvelle(s) intervention(s) trouvée(s) à l'instant`
+      : `✅ À jour — aucune nouvelle intervention`) + suffixeSource + ` · vérifié à ${formatHeure(new Date())}`;
+
+    liveDot.classList.remove('off');
+    liveTexte.textContent = `Suivi en direct actif — prochaine vérification automatique dans 5 min`;
+  } catch (e) {
+    statutEl.textContent = `⚠️ Connexion impossible pour le moment (essayé à ${formatHeure(new Date())})`;
+    erreurZone.innerHTML = '<p class="erreur">Impossible de récupérer les toutes dernières données en ligne, même via les sources de secours. Les interventions déjà enregistrées restent affichées ci-dessous — nouvelle tentative automatique dans quelques minutes.</p>';
+    liveDot.classList.add('off');
+    liveTexte.textContent = `Suivi en direct — nouvelle tentative automatique bientôt`;
+  }
+
+  boutonVerifier.disabled = false;
+  boutonVerifier.textContent = "🔄 Vérifier maintenant";
+  secondesRestantes = INTERVALLE_AUTO_MS / 1000;
+  afficher();
+}
+
+// --- Mode "live" : revérifie automatiquement toutes les 5 minutes tant que
+// l'onglet reste ouvert, et immédiatement si l'onglet redevient visible
+// après avoir été mis en arrière-plan (par ex. changement d'onglet).
+function demarrerBoucleLive() {
+  if (minuteurAuto) clearInterval(minuteurAuto);
+  minuteurAuto = setInterval(() => {
+    secondesRestantes -= 1;
+    if (secondesRestantes <= 0) {
+      verifierNouveautes(false);
+    } else if (secondesRestantes % 15 === 0) {
+      // rafraîchit le texte affiché sans spammer le DOM à chaque seconde
+      const min = Math.floor(secondesRestantes / 60);
+      const sec = String(secondesRestantes % 60).padStart(2, "0");
+      liveTexte.textContent = `Suivi en direct actif — prochaine vérification dans ${min}:${sec}`;
+    }
+  }, 1000);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    verifierNouveautes(false); // on revérifie dès qu'on revient sur la page
+  }
+});
+
+boutonVerifier.addEventListener('click', () => verifierNouveautes(true));
+
+afficher(); // affichage immédiat avec ce qu'on a déjà (pas d'écran vide)
+verifierNouveautes(true); // première vérification en direct
+demarrerBoucleLive(); // puis suivi automatique toutes les 5 minutes
+</script>
+
+</body>
+</html>
