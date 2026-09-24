@@ -62,7 +62,7 @@
 
 <header>
   <h1>🇫🇷 Les annonces de Macron, résumées simplement</h1>
-  <p>Résumé clair de chaque discours, allocution ou déclaration, récupéré en direct à chaque ouverture de la page — aucun serveur, aucun script à installer.</p>
+  <p>Résumé clair de chaque discours, allocution ou déclaration officielle d'Emmanuel Macron (elysee.fr, vie-publique.fr), récupéré en direct à chaque ouverture de la page.</p>
   <p class="statut" id="statut">Connexion à la source…</p>
   <div class="live" id="live-indicator"><span class="live-dot" id="live-dot"></span><span id="live-texte">Suivi en direct actif</span></div>
 </header>
@@ -78,8 +78,8 @@
 </main>
 
 <footer>
-  Source des données : Google Actualités, filtré sur les discours / allocutions / déclarations / annonces d'Emmanuel Macron relayés par la presse française.<br>
-  Résumés générés automatiquement à partir des titres et extraits d'articles — à vérifier auprès de la source en cas de doute.
+  Sources : sites officiels <strong>elysee.fr</strong> (Présidence de la République) et <strong>vie-publique.fr</strong> (service du Premier ministre), repérés en direct via Google Actualités.<br>
+  Résumés générés automatiquement à partir des titres et extraits — pour le texte complet, ouvre toujours le lien vers la page officielle.
   Les interventions déjà vues restent mémorisées sur cet appareil (stockage local du navigateur).
 </footer>
 
@@ -92,7 +92,12 @@
 // contient le texte intégral de chaque discours et pèse plusieurs dizaines
 // de Mo, ce qui le rend trop lourd pour être chargé de façon fiable
 // directement depuis un navigateur.
-const REQUETE = '"Emmanuel Macron" (discours OR allocution OR annonce OR déclaration OR intervention)';
+// On restreint la recherche à deux domaines strictement officiels :
+// - elysee.fr : le site de la Présidence de la République (discours, allocutions, interventions TV)
+// - vie-publique.fr : service du Premier ministre qui archive les transcriptions officielles
+// Google Actualités sert uniquement de "tuyau" léger pour repérer les nouvelles pages
+// publiées sur ces deux sites — le contenu affiché reste d'origine officielle.
+const REQUETE = '(site:elysee.fr OR site:vie-publique.fr) "Emmanuel Macron" (discours OR allocution OR déclaration OR intervention OR "conférence de presse")';
 const FLUX_URL = "https://news.google.com/rss/search?q=" + encodeURIComponent(REQUETE) + "&hl=fr&gl=FR&ceid=FR:fr";
 
 // Plusieurs façons d'atteindre ce flux, essayées dans l'ordre : appel
@@ -295,7 +300,7 @@ function dessinerListe(filtre) {
       </div>
       <h2>${i.titre || "Intervention d'Emmanuel Macron"}</h2>
       <div class="simple"><b>💡 En clair :</b> ${i.resume_simple || i.titre || "Résumé indisponible."}</div>
-      ${i.url ? `<a class="lien" href="${i.url}" target="_blank" rel="noopener">Lire l'article →</a>` : ""}
+      ${i.url ? `<a class="lien" href="${i.url}" target="_blank" rel="noopener">Voir la source officielle →</a>` : ""}
     `;
     tl.appendChild(card);
   });
@@ -388,321 +393,6 @@ boutonVerifier.addEventListener('click', () => verifierNouveautes(true));
 afficher();
 verifierNouveautes(true);
 demarrerBoucleLive();
-</script>
-
-</body>
-</html>es simplement</h1>
-  <p>Résumé clair de chaque discours ou déclaration officielle, récupéré en direct depuis les données du gouvernement à chaque ouverture de la page.</p>
-  <p class="statut" id="statut">Connexion à la source officielle…</p>
-  <div class="live" id="live-indicator"><span class="live-dot" id="live-dot"></span><span id="live-texte">Suivi en direct actif</span></div>
-</header>
-
-<main>
-  <div class="barre-verif">
-    <button class="verifier-btn" id="verifier-btn">🔄 Vérifier maintenant</button>
-  </div>
-  <div class="filtres" id="filtres"></div>
-  <p class="maj" id="maj"></p>
-  <div id="erreur-zone"></div>
-  <div class="timeline" id="timeline"><p class="vide">Chargement…</p></div>
-</main>
-
-<footer>
-  Source des données : flux officiel « discours publics » de vie-publique.fr (DILA / gouvernement français).<br>
-  Résumés générés automatiquement à partir des métadonnées officielles — à vérifier auprès de la source en cas de doute.
-  Les interventions déjà vues restent mémorisées sur cet appareil (stockage local du navigateur), même si elles sortent des 50 dernières de la source.
-</footer>
-
-<script>
-// ---------------------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------------------
-const SOURCE_URL = "https://echanges.dila.gouv.fr/OPENDATA/DISCOURS_PUBLICS/vp_discours.json";
-
-// Plusieurs façons d'atteindre la même source officielle, essayées dans
-// l'ordre : appel direct, puis deux relais publics différents si le
-// navigateur bloque l'appel direct (règle de sécurité CORS) ou si l'un des
-// relais est temporairement en panne. Ça rend la vérification bien plus
-// fiable qu'une seule tentative.
-const SOURCES = [
-  { nom: "Source officielle (direct)", url: SOURCE_URL },
-  { nom: "Relais de secours n°1", url: "https://api.allorigins.win/raw?url=" + encodeURIComponent(SOURCE_URL) },
-  { nom: "Relais de secours n°2", url: "https://corsproxy.io/?url=" + encodeURIComponent(SOURCE_URL) },
-];
-
-const STOCKAGE_CLE = "macron_interventions_v1";
-const INTERVALLE_AUTO_MS = 5 * 60 * 1000; // vérification automatique toutes les 5 minutes
-
-// Données de départ, pour que la page ne soit jamais vide au tout premier chargement.
-const AMORCE = [
-  {
-    id: "300832",
-    date: "2025-11-06",
-    titre: "Déclaration de M. Emmanuel Macron sur l'importance des forêts primaires dans la lutte contre le dérèglement climatique, à Belém",
-    url: "https://www.vie-publique.fr/discours/300832-emmanuel-macron-06112025-lutte-contre-le-dereglement-climatique",
-    circonstance: "Lancement du Tropical Forests Forever Fund",
-    thematiques: ["Climat"],
-    type_document: "Déclaration"
-  },
-  {
-    id: "seed-voeux-2026",
-    date: "2025-12-31",
-    titre: "Vœux aux Français pour 2026",
-    url: "",
-    circonstance: "Allocution télévisée annuelle du 31 décembre",
-    thematiques: ["Vœux annuels"],
-    type_document: "Allocution"
-  },
-  {
-    id: "seed-moyen-orient-2026-03",
-    date: "2026-03-03",
-    titre: "Allocution sur la situation au Proche et Moyen-Orient",
-    url: "",
-    circonstance: "Allocution télévisée exceptionnelle à 20h",
-    thematiques: ["International"],
-    type_document: "Allocution"
-  },
-  {
-    id: "seed-armees-2026-07",
-    date: "2026-07-13",
-    titre: "Discours aux Armées",
-    url: "",
-    circonstance: "Discours traditionnel devant les forces armées, veille du 14 juillet",
-    thematiques: ["Défense"],
-    type_document: "Discours"
-  }
-];
-
-// ---------------------------------------------------------------------
-// Stockage local (mémoire de ce que la page a déjà vu sur cet appareil)
-// ---------------------------------------------------------------------
-function chargerMemoire() {
-  try {
-    const brut = localStorage.getItem(STOCKAGE_CLE);
-    if (brut) return JSON.parse(brut);
-  } catch (e) { /* stockage indisponible : on continue sans */ }
-  return AMORCE;
-}
-
-function sauverMemoire(liste) {
-  try { localStorage.setItem(STOCKAGE_CLE, JSON.stringify(liste)); }
-  catch (e) { /* pas grave si ça échoue (navigation privée, etc.) */ }
-}
-
-// ---------------------------------------------------------------------
-// Résumé "en clair", généré par règles simples (pas d'IA ici)
-// ---------------------------------------------------------------------
-function resumerSimplement(entry) {
-  const type = (entry.type_document || "intervention").toLowerCase();
-  let phrase = `Emmanuel Macron a fait une ${type}.`;
-  if (entry.circonstance) phrase += ` Contexte : ${entry.circonstance}.`;
-  if (entry.thematiques && entry.thematiques.length) {
-    phrase += ` Thème(s) : ${entry.thematiques.join(", ")}.`;
-  }
-  return phrase;
-}
-
-// ---------------------------------------------------------------------
-// Récupération des données depuis la source officielle
-// ---------------------------------------------------------------------
-function estMacron(entry) {
-  const intervenants = entry.intervenants || [];
-  if (intervenants.some(p => (p.nom || "").toLowerCase().includes("macron"))) return true;
-  return (entry.titre || "").toLowerCase().includes("emmanuel macron");
-}
-
-async function recupererFlux(url) {
-  const controleur = new AbortController();
-  const minuteur = setTimeout(() => controleur.abort(), 12000);
-  try {
-    const res = await fetch(url, { cache: "no-store", signal: controleur.signal });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
-    if (Array.isArray(data)) return data;
-    for (const cle of ["discours", "data", "results", "items"]) {
-      if (Array.isArray(data[cle])) return data[cle];
-    }
-    for (const v of Object.values(data)) if (Array.isArray(v)) return v;
-    return [];
-  } finally {
-    clearTimeout(minuteur);
-  }
-}
-
-// Essaie chaque source l'une après l'autre jusqu'à ce que l'une d'elles
-// réponde correctement. Renvoie aussi le nom de la source qui a marché,
-// pour être transparent sur l'origine des données affichées.
-async function recupererDonnees() {
-  let derniereErreur = null;
-  for (const source of SOURCES) {
-    try {
-      const flux = await recupererFlux(source.url);
-      return { flux, source: source.nom };
-    } catch (e) {
-      derniereErreur = e;
-      console.warn(`[macron-suivi] échec via "${source.nom}" :`, e.message);
-    }
-  }
-  throw derniereErreur || new Error("Toutes les sources ont échoué.");
-}
-
-// ---------------------------------------------------------------------
-// Mise à jour + affichage
-// ---------------------------------------------------------------------
-function formatDate(iso) {
-  if (!iso) return "Date inconnue";
-  const [y, m, d] = iso.split("-");
-  const mois = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
-  return `${parseInt(d,10)} ${mois[parseInt(m,10)-1]} ${y}`;
-}
-
-let interventions = chargerMemoire();
-
-function dessinerFiltres() {
-  const filtresEl = document.getElementById('filtres');
-  filtresEl.innerHTML = "";
-  const themes = ["Tous", ...new Set(interventions.flatMap(i => (i.thematiques && i.thematiques.length) ? i.thematiques : ["Autre"]))];
-  themes.forEach(t => {
-    const btn = document.createElement('button');
-    btn.className = 'filtre-btn' + (t === 'Tous' ? ' actif' : '');
-    btn.textContent = t;
-    btn.onclick = () => {
-      document.querySelectorAll('.filtre-btn').forEach(b => b.classList.remove('actif'));
-      btn.classList.add('actif');
-      dessinerListe(t);
-    };
-    filtresEl.appendChild(btn);
-  });
-}
-
-function dessinerListe(filtre) {
-  const tl = document.getElementById('timeline');
-  tl.innerHTML = "";
-  const triees = [...interventions].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-  const filtrees = triees.filter(i => {
-    if (filtre === "Tous") return true;
-    const th = (i.thematiques && i.thematiques.length) ? i.thematiques : ["Autre"];
-    return th.includes(filtre);
-  });
-  if (!filtrees.length) {
-    tl.innerHTML = '<p class="vide">Rien dans cette catégorie pour le moment.</p>';
-    return;
-  }
-  filtrees.forEach(i => {
-    const tag = (i.thematiques && i.thematiques[0]) || i.type_document || "Autre";
-    const card = document.createElement('div');
-    card.className = 'carte';
-    card.innerHTML = `
-      <div class="carte-tete">
-        <span class="date">${formatDate(i.date)}</span>
-        <span class="tag">${tag}</span>
-      </div>
-      <h2>${i.titre || "Intervention d'Emmanuel Macron"}</h2>
-      <div class="simple"><b>💡 En clair :</b> ${i.resume_simple || resumerSimplement(i)}</div>
-      ${i.url ? `<a class="lien" href="${i.url}" target="_blank" rel="noopener">Voir la source officielle →</a>` : ""}
-    `;
-    tl.appendChild(card);
-  });
-}
-
-function afficher() {
-  dessinerFiltres();
-  dessinerListe("Tous");
-  document.getElementById('maj').textContent =
-    `${interventions.length} intervention(s) enregistrée(s) sur cet appareil.`;
-}
-
-const boutonVerifier = document.getElementById('verifier-btn');
-const liveDot = document.getElementById('live-dot');
-const liveTexte = document.getElementById('live-texte');
-let minuteurAuto = null;
-let secondesRestantes = INTERVALLE_AUTO_MS / 1000;
-
-function formatHeure(d) {
-  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
-async function verifierNouveautes(manuel) {
-  const statutEl = document.getElementById('statut');
-  const erreurZone = document.getElementById('erreur-zone');
-  erreurZone.innerHTML = "";
-  boutonVerifier.disabled = true;
-  boutonVerifier.textContent = "🔄 Vérification…";
-  if (manuel) statutEl.textContent = "Connexion à la source officielle…";
-
-  try {
-    const { flux, source } = await recupererDonnees();
-    const connues = new Set(interventions.map(i => i.id));
-    let nouveaux = 0;
-
-    flux.filter(estMacron).forEach(entry => {
-      const id = String(entry.id || entry.url || "");
-      if (!id || connues.has(id)) return;
-      interventions.push({
-        id,
-        date: entry.prononciation || "",
-        titre: (entry.titre || "").trim(),
-        url: entry.url || "",
-        circonstance: (entry.circonstance || "").trim(),
-        thematiques: entry.thematiques || [],
-        type_document: entry.type_document || "",
-        resume_simple: resumerSimplement(entry)
-      });
-      connues.add(id);
-      nouveaux++;
-    });
-
-    if (nouveaux > 0) sauverMemoire(interventions);
-
-    const suffixeSource = source !== SOURCES[0].nom ? ` (via ${source})` : "";
-    statutEl.textContent = (nouveaux > 0
-      ? `✅ ${nouveaux} nouvelle(s) intervention(s) trouvée(s) à l'instant`
-      : `✅ À jour — aucune nouvelle intervention`) + suffixeSource + ` · vérifié à ${formatHeure(new Date())}`;
-
-    liveDot.classList.remove('off');
-    liveTexte.textContent = `Suivi en direct actif — prochaine vérification automatique dans 5 min`;
-  } catch (e) {
-    statutEl.textContent = `⚠️ Connexion impossible pour le moment (essayé à ${formatHeure(new Date())})`;
-    erreurZone.innerHTML = '<p class="erreur">Impossible de récupérer les toutes dernières données en ligne, même via les sources de secours. Les interventions déjà enregistrées restent affichées ci-dessous — nouvelle tentative automatique dans quelques minutes.</p>';
-    liveDot.classList.add('off');
-    liveTexte.textContent = `Suivi en direct — nouvelle tentative automatique bientôt`;
-  }
-
-  boutonVerifier.disabled = false;
-  boutonVerifier.textContent = "🔄 Vérifier maintenant";
-  secondesRestantes = INTERVALLE_AUTO_MS / 1000;
-  afficher();
-}
-
-// --- Mode "live" : revérifie automatiquement toutes les 5 minutes tant que
-// l'onglet reste ouvert, et immédiatement si l'onglet redevient visible
-// après avoir été mis en arrière-plan (par ex. changement d'onglet).
-function demarrerBoucleLive() {
-  if (minuteurAuto) clearInterval(minuteurAuto);
-  minuteurAuto = setInterval(() => {
-    secondesRestantes -= 1;
-    if (secondesRestantes <= 0) {
-      verifierNouveautes(false);
-    } else if (secondesRestantes % 15 === 0) {
-      // rafraîchit le texte affiché sans spammer le DOM à chaque seconde
-      const min = Math.floor(secondesRestantes / 60);
-      const sec = String(secondesRestantes % 60).padStart(2, "0");
-      liveTexte.textContent = `Suivi en direct actif — prochaine vérification dans ${min}:${sec}`;
-    }
-  }, 1000);
-}
-
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    verifierNouveautes(false); // on revérifie dès qu'on revient sur la page
-  }
-});
-
-boutonVerifier.addEventListener('click', () => verifierNouveautes(true));
-
-afficher(); // affichage immédiat avec ce qu'on a déjà (pas d'écran vide)
-verifierNouveautes(true); // première vérification en direct
-demarrerBoucleLive(); // puis suivi automatique toutes les 5 minutes
 </script>
 
 </body>
