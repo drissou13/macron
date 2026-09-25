@@ -50,6 +50,10 @@
   .simple{margin-top:.5rem;padding:.7rem .9rem;background:#f1f4ff;border-radius:10px;font-size:.92rem;color:var(--texte-doux);}
   @media (prefers-color-scheme: dark){ .simple{background:#20263a;} }
   .simple b{color:var(--texte);}
+  .simple.ia{border:1px solid #c8d4ff;}
+  @media (prefers-color-scheme: dark){ .simple.ia{border-color:#3a4468;} }
+  .badge-ia{display:inline-block;font-size:.68rem;font-weight:700;color:var(--bleu-clair);margin-left:.3rem;}
+  .en-cours{font-style:italic;opacity:.75;}
   .lien{display:inline-block;margin-top:.6rem;font-size:.85rem;color:var(--bleu-clair);text-decoration:none;}
   .lien:hover{text-decoration:underline;}
   footer{text-align:center;padding:1.5rem 1rem 2.5rem;color:var(--texte-doux);font-size:.8rem;}
@@ -62,7 +66,7 @@
 
 <header>
   <h1>🇫🇷 Les annonces de Macron, résumées simplement</h1>
-  <p>Résumé clair de chaque discours, allocution ou déclaration officielle d'Emmanuel Macron (elysee.fr, vie-publique.fr), récupéré en direct à chaque ouverture de la page.</p>
+  <p>Vrai résumé de chaque discours, allocution ou déclaration officielle d'Emmanuel Macron (elysee.fr, vie-publique.fr), rédigé par IA à partir du texte complet, récupéré en direct.</p>
   <p class="statut" id="statut">Connexion à la source…</p>
   <div class="live" id="live-indicator"><span class="live-dot" id="live-dot"></span><span id="live-texte">Suivi en direct actif</span></div>
 </header>
@@ -79,43 +83,38 @@
 
 <footer>
   Sources : sites officiels <strong>elysee.fr</strong> (Présidence de la République) et <strong>vie-publique.fr</strong> (service du Premier ministre), repérés en direct via Google Actualités.<br>
-  Résumés générés automatiquement à partir des titres et extraits — pour le texte complet, ouvre toujours le lien vers la page officielle.
+  Résumés rédigés par IA à partir du texte intégral de la page officielle quand c'est possible (repère ✨) — sinon résumé simplifié à partir du titre.
   Les interventions déjà vues restent mémorisées sur cet appareil (stockage local du navigateur).
 </footer>
 
 <script>
 // ---------------------------------------------------------------------
-// Configuration des sources
+// Configuration des sources de la LISTE des interventions
 // ---------------------------------------------------------------------
-// On interroge Google Actualités (flux RSS, très léger, mis à jour en
-// continu) plutôt que le fichier officiel du gouvernement : ce dernier
-// contient le texte intégral de chaque discours et pèse plusieurs dizaines
-// de Mo, ce qui le rend trop lourd pour être chargé de façon fiable
-// directement depuis un navigateur.
-// On restreint la recherche à deux domaines strictement officiels :
-// - elysee.fr : le site de la Présidence de la République (discours, allocutions, interventions TV)
-// - vie-publique.fr : service du Premier ministre qui archive les transcriptions officielles
-// Google Actualités sert uniquement de "tuyau" léger pour repérer les nouvelles pages
-// publiées sur ces deux sites — le contenu affiché reste d'origine officielle.
 const REQUETE = '(site:elysee.fr OR site:vie-publique.fr) "Emmanuel Macron" (discours OR allocution OR déclaration OR intervention OR "conférence de presse")';
 const FLUX_URL = "https://news.google.com/rss/search?q=" + encodeURIComponent(REQUETE) + "&hl=fr&gl=FR&ceid=FR:fr";
 
-// Plusieurs façons d'atteindre ce flux, essayées dans l'ordre. rss2json.com
-// est un service fait spécifiquement pour convertir un flux RSS en JSON
-// utilisable depuis un navigateur (avec les bons en-têtes CORS) : c'est
-// beaucoup plus fiable qu'un simple relais générique. Les deux autres
-// servent de filet de sécurité si jamais ce service est indisponible.
-const SOURCES = [
+const SOURCES_LISTE = [
   { nom: "rss2json (direct)", type: "rss2json", url: "https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(FLUX_URL) },
   { nom: "Relais de secours n°1", type: "xml", url: "https://api.allorigins.win/raw?url=" + encodeURIComponent(FLUX_URL) },
   { nom: "Relais de secours n°2", type: "xml", url: "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(FLUX_URL) },
   { nom: "Google Actualités (direct)", type: "xml", url: FLUX_URL },
 ];
 
-const STOCKAGE_CLE = "macron_interventions_v2";
-const INTERVALLE_AUTO_MS = 5 * 60 * 1000; // vérification automatique toutes les 5 minutes
+// Pour aller chercher le texte complet de CHAQUE page officielle (utilisé
+// pour le vrai résumé IA) : même logique de secours en cascade.
+function urlsCascadePage(urlCible) {
+  return [
+    urlCible,
+    "https://api.allorigins.win/raw?url=" + encodeURIComponent(urlCible),
+    "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(urlCible),
+  ];
+}
 
-// Données de départ, pour que la page ne soit jamais vide au tout premier chargement.
+const STOCKAGE_CLE = "macron_interventions_v3";
+const INTERVALLE_AUTO_MS = 5 * 60 * 1000; // vérification automatique toutes les 5 minutes
+const MAX_RESUMES_IA_PAR_PASSAGE = 6; // limite de sécurité (coût / temps) par vérification
+
 const AMORCE = [
   {
     id: "300832",
@@ -123,7 +122,8 @@ const AMORCE = [
     titre: "Déclaration de M. Emmanuel Macron sur l'importance des forêts primaires dans la lutte contre le dérèglement climatique, à Belém",
     url: "https://www.vie-publique.fr/discours/300832-emmanuel-macron-06112025-lutte-contre-le-dereglement-climatique",
     source: "vie-publique.fr",
-    resume_simple: "En clair : Macron annonce le lancement d'un fonds international pour protéger les forêts tropicales, jugées essentielles contre le réchauffement climatique."
+    resume_simple: "Macron annonce le lancement d'un fonds international pour protéger les forêts tropicales, jugées essentielles contre le réchauffement climatique.",
+    resume_ia: false
   },
   {
     id: "seed-voeux-2026",
@@ -131,7 +131,8 @@ const AMORCE = [
     titre: "Vœux aux Français pour 2026",
     url: "",
     source: "Allocution télévisée",
-    resume_simple: "En clair : moins de portable pour les jeunes, débat sur la fin de vie qui avance, et surtout un gros défi : faire voter un budget alors que personne n'est d'accord au Parlement."
+    resume_simple: "Moins de portable pour les jeunes, débat sur la fin de vie qui avance, et un gros défi : faire voter un budget malgré l'absence de majorité.",
+    resume_ia: false
   },
   {
     id: "seed-moyen-orient-2026-03",
@@ -139,7 +140,8 @@ const AMORCE = [
     titre: "Allocution sur la situation au Proche et Moyen-Orient",
     url: "",
     source: "Allocution télévisée",
-    resume_simple: "En clair : Macron s'adresse aux Français en urgence à cause d'une crise au Moyen-Orient."
+    resume_simple: "Macron s'adresse aux Français en urgence à cause d'une crise au Moyen-Orient.",
+    resume_ia: false
   },
   {
     id: "seed-armees-2026-07",
@@ -147,28 +149,27 @@ const AMORCE = [
     titre: "Discours aux Armées",
     url: "",
     source: "Discours officiel",
-    resume_simple: "En clair : Macron dit qu'il a tenu sa promesse d'augmenter le budget de l'armée, et veut que ça continue après lui."
+    resume_simple: "Macron dit avoir tenu sa promesse d'augmenter le budget de l'armée, et veut que ça continue après lui.",
+    resume_ia: false
   }
 ];
 
 // ---------------------------------------------------------------------
-// Stockage local (mémoire de ce que la page a déjà vu sur cet appareil)
+// Stockage local
 // ---------------------------------------------------------------------
 function chargerMemoire() {
   try {
     const brut = localStorage.getItem(STOCKAGE_CLE);
     if (brut) return JSON.parse(brut);
-  } catch (e) { /* stockage indisponible : on continue sans */ }
+  } catch (e) {}
   return AMORCE;
 }
-
 function sauverMemoire(liste) {
-  try { localStorage.setItem(STOCKAGE_CLE, JSON.stringify(liste)); }
-  catch (e) { /* pas grave si ça échoue (navigation privée, etc.) */ }
+  try { localStorage.setItem(STOCKAGE_CLE, JSON.stringify(liste)); } catch (e) {}
 }
 
 // ---------------------------------------------------------------------
-// Résumé "en clair", généré par règles simples à partir du titre/extrait
+// Utilitaires texte
 // ---------------------------------------------------------------------
 function nettoyerTexte(txt) {
   if (!txt) return "";
@@ -186,12 +187,20 @@ function resumerSimplement(titre, extrait) {
   return t;
 }
 
+function extraireTexteVisible(html) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc.querySelectorAll("script,style,nav,header,footer,aside,noscript,svg,form").forEach(n => n.remove());
+  const principal = doc.querySelector("main, article, #content, .content") || doc.body;
+  const texte = (principal?.textContent || "").replace(/[ \t]+/g, " ").replace(/\n{2,}/g, "\n").trim();
+  return texte;
+}
+
 // ---------------------------------------------------------------------
-// Récupération et lecture du flux RSS
+// Récupération de la LISTE (flux RSS via rss2json puis relais XML)
 // ---------------------------------------------------------------------
-async function recupererTexte(url) {
+async function recupererTexte(url, timeoutMs) {
   const controleur = new AbortController();
-  const minuteur = setTimeout(() => controleur.abort(), 18000);
+  const minuteur = setTimeout(() => controleur.abort(), timeoutMs || 18000);
   try {
     const res = await fetch(url, { cache: "no-store", signal: controleur.signal });
     if (!res.ok) throw new Error("HTTP " + res.status);
@@ -202,65 +211,41 @@ async function recupererTexte(url) {
 }
 
 function analyserRSS(xmlTexte) {
-  const parser = new DOMParser();
-  const xml = parser.parseFromString(xmlTexte, "application/xml");
+  const xml = new DOMParser().parseFromString(xmlTexte, "application/xml");
   if (xml.querySelector("parsererror")) throw new Error("Flux RSS illisible");
-  const items = Array.from(xml.querySelectorAll("item"));
-  return items.map(item => {
-    const titreBrut = item.querySelector("title")?.textContent || "";
-    const lien = item.querySelector("link")?.textContent || "";
-    const pubDate = item.querySelector("pubDate")?.textContent || "";
-    const description = item.querySelector("description")?.textContent || "";
-    const sourceTag = item.getElementsByTagName("source")[0];
-    const source = sourceTag ? sourceTag.textContent : "";
-    return normaliserEntree(titreBrut, lien, pubDate, description, source);
-  });
+  return Array.from(xml.querySelectorAll("item")).map(item => normaliserEntree(
+    item.querySelector("title")?.textContent || "",
+    item.querySelector("link")?.textContent || "",
+    item.querySelector("pubDate")?.textContent || "",
+    item.querySelector("description")?.textContent || "",
+    item.getElementsByTagName("source")[0]?.textContent || ""
+  ));
 }
 
 function analyserJSONrss2json(texteJson) {
   const data = JSON.parse(texteJson);
-  if (data.status && data.status !== "ok") {
-    throw new Error("rss2json : " + (data.message || "réponse invalide"));
-  }
-  const items = data.items || [];
-  return items.map(it => normaliserEntree(
-    it.title || "",
-    it.link || "",
-    it.pubDate || "",
-    it.description || it.content || "",
-    (it.author || "")
+  if (data.status && data.status !== "ok") throw new Error("rss2json : " + (data.message || "réponse invalide"));
+  return (data.items || []).map(it => normaliserEntree(
+    it.title || "", it.link || "", it.pubDate || "", it.description || it.content || "", it.author || ""
   ));
 }
 
 function normaliserEntree(titreBrut, lien, pubDate, description, sourceTag) {
-  // Google News formate les titres ainsi : "Titre de l'article - Nom du média"
   let titre = nettoyerTexte(titreBrut);
   let media = sourceTag;
   const sep = titre.lastIndexOf(" - ");
-  if (!media && sep > -1) {
-    media = titre.slice(sep + 3).trim();
-    titre = titre.slice(0, sep).trim();
-  }
-
+  if (!media && sep > -1) { media = titre.slice(sep + 3).trim(); titre = titre.slice(0, sep).trim(); }
   let date = "";
-  if (pubDate) {
-    const d = new Date(pubDate);
-    if (!isNaN(d)) date = d.toISOString().slice(0, 10);
-  }
-
+  if (pubDate) { const d = new Date(pubDate); if (!isNaN(d)) date = d.toISOString().slice(0, 10); }
   return {
-    id: lien || titre,
-    date,
-    titre,
-    url: lien,
-    source: media || "Site officiel",
-    resume_simple: resumerSimplement(titre, description)
+    id: lien || titre, date, titre, url: lien, source: media || "Site officiel",
+    resume_simple: resumerSimplement(titre, description), resume_ia: false
   };
 }
 
-async function recupererDonnees() {
+async function recupererListe() {
   let derniereErreur = null;
-  for (const source of SOURCES) {
+  for (const source of SOURCES_LISTE) {
     try {
       const texte = await recupererTexte(source.url);
       const items = source.type === "rss2json" ? analyserJSONrss2json(texte) : analyserRSS(texte);
@@ -268,16 +253,50 @@ async function recupererDonnees() {
       return { items, source: source.nom };
     } catch (e) {
       derniereErreur = e;
-      console.warn(`[macron-suivi] échec via "${source.nom}" :`, e.message);
+      console.warn(`[macron-suivi] échec liste via "${source.nom}" :`, e.message);
     }
   }
   throw derniereErreur || new Error("Toutes les sources ont échoué.");
 }
 
 // ---------------------------------------------------------------------
-// Affichage
+// Récupération de la PAGE COMPLÈTE + résumé par IA (capacité "sample")
+// ---------------------------------------------------------------------
+async function recupererPageComplete(urlCible) {
+  let derniereErreur = null;
+  for (const url of urlsCascadePage(urlCible)) {
+    try {
+      const html = await recupererTexte(url, 15000);
+      const texte = extraireTexteVisible(html);
+      if (texte.length > 300) return texte;
+      throw new Error("Contenu trop court");
+    } catch (e) {
+      derniereErreur = e;
+    }
+  }
+  throw derniereErreur || new Error("Page inaccessible");
+}
+
+async function resumerAvecIA(sampleFn, titre, texteArticle) {
+  const contenu = texteArticle.length > 6000 ? texteArticle.slice(0, 6000) : texteArticle;
+  const prompt =
+    "Voici le texte d'une page officielle (Présidence de la République ou vie-publique.fr) " +
+    "au sujet d'une intervention publique d'Emmanuel Macron.\n\n" +
+    "Titre : " + titre + "\n\n" +
+    "Contenu de la page :\n" + contenu + "\n\n" +
+    "Rédige un résumé très simple et concret, en français, en 2 à 4 phrases courtes, " +
+    "compréhensible par quelqu'un qui ne suit pas l'actualité politique de près. " +
+    "Va à l'essentiel : qu'est-ce qu'il a annoncé ou dit de concret ? " +
+    "N'utilise ni guillemets ni préambule (\"voici un résumé\", etc.) : réponds uniquement avec le résumé.";
+  const resultat = await sampleFn(prompt, { modelTier: "quick" });
+  return (resultat?.text || "").trim();
+}
+
+// ---------------------------------------------------------------------
+// État + affichage
 // ---------------------------------------------------------------------
 let interventions = chargerMemoire();
+let sampleFn = null; // capacité IA, résolue au chargement si disponible
 
 function formatDate(iso) {
   if (!iso) return "Date inconnue";
@@ -288,11 +307,12 @@ function formatDate(iso) {
 
 function dessinerFiltres() {
   const filtresEl = document.getElementById('filtres');
+  const actifAvant = document.querySelector('.filtre-btn.actif')?.textContent || "Tous";
   filtresEl.innerHTML = "";
   const sources = ["Tous", ...new Set(interventions.map(i => i.source || "Autre"))];
   sources.forEach(t => {
     const btn = document.createElement('button');
-    btn.className = 'filtre-btn' + (t === 'Tous' ? ' actif' : '');
+    btn.className = 'filtre-btn' + (t === actifAvant ? ' actif' : '');
     btn.textContent = t;
     btn.onclick = () => {
       document.querySelectorAll('.filtre-btn').forEach(b => b.classList.remove('actif'));
@@ -308,20 +328,19 @@ function dessinerListe(filtre) {
   tl.innerHTML = "";
   const triees = [...interventions].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   const filtrees = triees.filter(i => filtre === "Tous" || (i.source || "Autre") === filtre);
-  if (!filtrees.length) {
-    tl.innerHTML = '<p class="vide">Rien dans cette catégorie pour le moment.</p>';
-    return;
-  }
+  if (!filtrees.length) { tl.innerHTML = '<p class="vide">Rien dans cette catégorie pour le moment.</p>'; return; }
   filtrees.forEach(i => {
     const card = document.createElement('div');
     card.className = 'carte';
+    const classeResume = 'simple' + (i.resume_ia ? ' ia' : '');
+    const badge = i.resume_ia ? '<span class="badge-ia">✨ résumé IA</span>' : (i.resume_en_cours ? '<span class="badge-ia en-cours">✨ résumé en cours…</span>' : '');
     card.innerHTML = `
       <div class="carte-tete">
         <span class="date">${formatDate(i.date)}</span>
         <span class="tag">${i.source || "Autre"}</span>
       </div>
       <h2>${i.titre || "Intervention d'Emmanuel Macron"}</h2>
-      <div class="simple"><b>💡 En clair :</b> ${i.resume_simple || i.titre || "Résumé indisponible."}</div>
+      <div class="${classeResume}"><b>💡 En clair :</b> ${i.resume_simple || i.titre || "Résumé indisponible."} ${badge}</div>
       ${i.url ? `<a class="lien" href="${i.url}" target="_blank" rel="noopener">Voir la source officielle →</a>` : ""}
     `;
     tl.appendChild(card);
@@ -331,12 +350,11 @@ function dessinerListe(filtre) {
 function afficher() {
   dessinerFiltres();
   dessinerListe(document.querySelector('.filtre-btn.actif')?.textContent || "Tous");
-  document.getElementById('maj').textContent =
-    `${interventions.length} intervention(s) enregistrée(s) sur cet appareil.`;
+  document.getElementById('maj').textContent = `${interventions.length} intervention(s) enregistrée(s) sur cet appareil.`;
 }
 
 // ---------------------------------------------------------------------
-// Vérification manuelle + mode live automatique
+// Vérification + génération des vrais résumés IA pour les nouveautés
 // ---------------------------------------------------------------------
 const boutonVerifier = document.getElementById('verifier-btn');
 const liveDot = document.getElementById('live-dot');
@@ -344,8 +362,25 @@ const liveTexte = document.getElementById('live-texte');
 let minuteurAuto = null;
 let secondesRestantes = INTERVALLE_AUTO_MS / 1000;
 
-function formatHeure(d) {
-  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+function formatHeure(d) { return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+
+async function genererResumesIA(nouveauxItems) {
+  if (!sampleFn || !nouveauxItems.length) return;
+  const aTraiter = nouveauxItems.filter(i => i.url).slice(0, MAX_RESUMES_IA_PAR_PASSAGE);
+  for (const item of aTraiter) {
+    item.resume_en_cours = true;
+    afficher();
+    try {
+      const texte = await recupererPageComplete(item.url);
+      const resume = await resumerAvecIA(sampleFn, item.titre, texte);
+      if (resume) { item.resume_simple = resume; item.resume_ia = true; }
+    } catch (e) {
+      console.warn("[macron-suivi] résumé IA impossible pour", item.titre, e.message);
+    }
+    delete item.resume_en_cours;
+    sauverMemoire(interventions);
+    afficher();
+  }
 }
 
 async function verifierNouveautes(manuel) {
@@ -357,37 +392,37 @@ async function verifierNouveautes(manuel) {
   if (manuel) statutEl.textContent = "Connexion à la source…";
 
   try {
-    const { items, source } = await recupererDonnees();
+    const { items, source } = await recupererListe();
     const connues = new Set(interventions.map(i => i.id));
-    let nouveaux = 0;
-
+    const nouveaux = [];
     items.forEach(entry => {
       if (!entry.id || connues.has(entry.id)) return;
       interventions.push(entry);
       connues.add(entry.id);
-      nouveaux++;
+      nouveaux.push(entry);
     });
+    if (nouveaux.length) sauverMemoire(interventions);
 
-    if (nouveaux > 0) sauverMemoire(interventions);
-
-    const suffixeSource = source !== SOURCES[0].nom ? ` (via ${source})` : "";
-    statutEl.textContent = (nouveaux > 0
-      ? `✅ ${nouveaux} nouvelle(s) intervention(s) trouvée(s) à l'instant`
+    const suffixeSource = source !== SOURCES_LISTE[0].nom ? ` (via ${source})` : "";
+    statutEl.textContent = (nouveaux.length
+      ? `✅ ${nouveaux.length} nouvelle(s) intervention(s) trouvée(s)`
       : `✅ À jour — aucune nouvelle intervention`) + suffixeSource + ` · vérifié à ${formatHeure(new Date())}`;
-
     liveDot.classList.remove('off');
     liveTexte.textContent = `Suivi en direct actif — prochaine vérification automatique dans 5 min`;
+
+    afficher();
+    if (nouveaux.length) await genererResumesIA(nouveaux); // résumés IA en tâche de fond
   } catch (e) {
     statutEl.textContent = `⚠️ Connexion impossible pour le moment (essayé à ${formatHeure(new Date())})`;
     erreurZone.innerHTML = '<p class="erreur">Impossible de récupérer les toutes dernières données, même via les sources de secours. Les interventions déjà enregistrées restent affichées ci-dessous — nouvelle tentative automatique dans quelques minutes.</p>';
     liveDot.classList.add('off');
     liveTexte.textContent = `Suivi en direct — nouvelle tentative automatique bientôt`;
+    afficher();
   }
 
   boutonVerifier.disabled = false;
   boutonVerifier.textContent = "🔄 Vérifier maintenant";
   secondesRestantes = INTERVALLE_AUTO_MS / 1000;
-  afficher();
 }
 
 function demarrerBoucleLive() {
@@ -405,16 +440,27 @@ function demarrerBoucleLive() {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    verifierNouveautes(false);
-  }
+  if (document.visibilityState === 'visible') verifierNouveautes(false);
 });
-
 boutonVerifier.addEventListener('click', () => verifierNouveautes(true));
 
-afficher();
-verifierNouveautes(true);
-demarrerBoucleLive();
+// ---------------------------------------------------------------------
+// Démarrage
+// ---------------------------------------------------------------------
+async function demarrer() {
+  afficher();
+  try {
+    if (window.claude && typeof window.claude.use === "function") {
+      sampleFn = await window.claude.use("sample");
+    }
+  } catch (e) {
+    sampleFn = null;
+  }
+  await verifierNouveautes(true);
+  demarrerBoucleLive();
+}
+
+demarrer();
 </script>
 
 </body>
